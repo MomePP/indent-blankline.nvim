@@ -5,6 +5,9 @@ M.setup = function()
     local group = vim.api.nvim_create_augroup("IndentBlankline", {})
     local ibl = require "ibl"
     local buffer_leftcol = {}
+    
+    -- Cache debounced_refresh reference for better performance
+    local debounced_refresh = ibl.debounced_refresh
 
     vim.api.nvim_create_autocmd("VimEnter", {
         group = group,
@@ -24,14 +27,14 @@ M.setup = function()
         group = group,
         pattern = "*",
         callback = function(opts)
-            ibl.debounced_refresh(opts.buf)
+            debounced_refresh(opts.buf)
         end,
     })
     vim.api.nvim_create_autocmd("OptionSet", {
         group = group,
         pattern = "list,listchars,shiftwidth,tabstop,vartabstop,breakindent,breakindentopt",
         callback = function(opts)
-            ibl.debounced_refresh(opts.buf)
+            debounced_refresh(opts.buf)
         end,
     })
     vim.api.nvim_create_autocmd("WinScrolled", {
@@ -45,7 +48,7 @@ M.setup = function()
                 -- Refresh immediately for horizontal scrolling
                 ibl.refresh(opts.buf)
             else
-                ibl.debounced_refresh(opts.buf)
+                debounced_refresh(opts.buf)
             end
         end,
     })
