@@ -355,7 +355,7 @@ M.refresh = function(bufnr)
 
         ---@type ibl.indent.whitespace[]
         local whitespace_tbl
-        local blankline = line:len() == 0
+        local blankline = #line == 0
         local whitespace_only = not blankline and line == whitespace
 
         -- #### calculate indent ####
@@ -369,7 +369,7 @@ M.refresh = function(bufnr)
                 whitespace_tbl = {}
             else
                 local j = i + 1
-                while j < #lines and (lines[j]:len() == 0 or line_skipped[j]) do
+                while j < #lines and (#lines[j] == 0 or line_skipped[j]) do
                     if not line_skipped[j] then
                         empty_line_counter = empty_line_counter + 1
                     end

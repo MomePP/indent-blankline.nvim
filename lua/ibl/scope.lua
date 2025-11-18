@@ -81,14 +81,18 @@ M.get = function(bufnr, config, buffer_state)
         utils.tbl_join(config.scope.exclude.node_type["*"] or {}, config.scope.exclude.node_type[lang] or {})
     local include_node_types =
         utils.tbl_join(config.scope.include.node_type["*"] or {}, config.scope.include.node_type[lang] or {})
+    
+    -- Cache wildcard check for performance
+    local include_all = utils.tbl_contains(include_node_types, "*")
+    local scope_lang_for_lang = scope_lang[lang]
 
     while node and node:byte_length() > 0 do
         local type = node:type()
 
         if
-            ((scope_lang[lang] and scope_lang[lang][type]) and not utils.tbl_contains(excluded_node_types, type))
+            ((scope_lang_for_lang and scope_lang_for_lang[type]) and not utils.tbl_contains(excluded_node_types, type))
             or utils.tbl_contains(include_node_types, type)
-            or utils.tbl_contains(include_node_types, "*")
+            or include_all
         then
             return node
         else
