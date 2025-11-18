@@ -103,6 +103,9 @@ M.refresh_all = function()
     end
 end
 
+-- Cache uv handle at module level for better performance
+local uv = vim.uv or vim.loop
+
 local debounced_refresh = setmetatable({
     timers = {},
     queued_buffers = {},
@@ -110,7 +113,6 @@ local debounced_refresh = setmetatable({
     ---@param bufnr number
     __call = function(self, bufnr)
         bufnr = utils.get_bufnr(bufnr)
-        local uv = vim.uv or vim.loop
         if not self.timers[bufnr] then
             self.timers[bufnr] = uv.new_timer()
         end
@@ -200,11 +202,13 @@ M.refresh = function(bufnr)
     local range = math.min(win_end + config.viewport_buffer.min, vim.api.nvim_buf_line_count(bufnr))
     local lines = vim.api.nvim_buf_get_lines(bufnr, offset, range, false)
 
+    -- Cache buffer options to reduce API calls
+    local buf_opts = { buf = bufnr }
     ---@type ibl.indent_options
     local indent_opts = {
-        tabstop = vim.api.nvim_get_option_value("tabstop", { buf = bufnr }),
-        vartabstop = vim.api.nvim_get_option_value("vartabstop", { buf = bufnr }),
-        shiftwidth = vim.api.nvim_get_option_value("shiftwidth", { buf = bufnr }),
+        tabstop = vim.api.nvim_get_option_value("tabstop", buf_opts),
+        vartabstop = vim.api.nvim_get_option_value("vartabstop", buf_opts),
+        shiftwidth = vim.api.nvim_get_option_value("shiftwidth", buf_opts),
         smart_indent_cap = config.indent.smart_indent_cap,
     }
     local listchars = utils.get_listchars(bufnr)
