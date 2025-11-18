@@ -194,8 +194,16 @@ M.refresh = function(bufnr)
         if scope and scope:start() >= 0 then
             local scope_start = scope:start()
             local scope_end = scope:end_()
-            scope_start_line = vim.api.nvim_buf_get_lines(bufnr, scope_start, scope_start + 1, false)[1]
-            scope_end_line = vim.api.nvim_buf_get_lines(bufnr, scope_end, scope_end + 1, false)[1]
+            -- Optimize: batch scope line retrieval when they're far apart
+            if scope_end - scope_start > 10 then
+                scope_start_line = vim.api.nvim_buf_get_lines(bufnr, scope_start, scope_start + 1, false)[1]
+                scope_end_line = vim.api.nvim_buf_get_lines(bufnr, scope_end, scope_end + 1, false)[1]
+            else
+                -- Batch read when lines are close together
+                local scope_lines = vim.api.nvim_buf_get_lines(bufnr, scope_start, scope_end + 1, false)
+                scope_start_line = scope_lines[1]
+                scope_end_line = scope_lines[scope_end - scope_start + 1]
+            end
         end
     end
 
@@ -313,27 +321,35 @@ M.refresh = function(bufnr)
 
     -- Repeat indent virtual text on wrapped lines when 'breakindent' is set.
     local repeat_indent = utils.has_repeat_indent(bufnr, config)
+    
+    -- Cache frequently used functions for better performance in hot loop
+    local get_whitespace = utils.get_whitespace
+    local get_foldclosed = utils.get_foldclosed
+    local is_indent = indent.is_indent
+    local is_space_indent = indent.is_space_indent
+    local has_end = utils.has_end
+    local vt_clear_buffer = vt.clear_buffer
 
     for i, line in ipairs(lines) do
         local row = i + offset
         if line_skipped[i] then
-            vt.clear_buffer(bufnr, row)
+            vt_clear_buffer(bufnr, row)
             goto continue
         end
 
-        local whitespace = utils.get_whitespace(line)
-        local foldclosed = utils.get_foldclosed(bufnr, row)
+        local whitespace = get_whitespace(line)
+        local foldclosed = get_foldclosed(bufnr, row)
         if is_current_buffer and foldclosed == row and not has_empty_foldtext then
             local foldtext = utils.get_foldtextresult(bufnr, row)
-            local foldtext_whitespace = utils.get_whitespace(foldtext)
+            local foldtext_whitespace = get_whitespace(foldtext)
             if vim.fn.strdisplaywidth(foldtext_whitespace, 0) < vim.fn.strdisplaywidth(whitespace, 0) then
-                vt.clear_buffer(bufnr, row)
+                vt_clear_buffer(bufnr, row)
                 goto continue
             end
         end
 
         if is_current_buffer and foldclosed > -1 and foldclosed + win_height < row then
-            vt.clear_buffer(bufnr, row)
+            vt_clear_buffer(bufnr, row)
             goto continue
         end
 
@@ -360,16 +376,16 @@ M.refresh = function(bufnr)
                     j = j + 1
                 end
 
-                local j_whitespace = utils.get_whitespace(lines[j])
+                local j_whitespace = get_whitespace(lines[j])
                 whitespace_tbl, indent_state = indent.get(j_whitespace, indent_opts, whitespace_only, indent_state)
 
-                if utils.has_end(lines[j]) then
+                if has_end(lines[j]) then
                     local trail = last_whitespace_tbl[indent_state.stack[#indent_state.stack] + 1]
                     local trail_whitespace = last_whitespace_tbl[indent_state.stack[#indent_state.stack]]
                     if trail then
                         table.insert(whitespace_tbl, trail)
                     elseif trail_whitespace then
-                        if indent.is_space_indent(trail_whitespace) then
+                        if is_space_indent(trail_whitespace) then
                             table.insert(whitespace_tbl, indent.whitespace.INDENT)
                         else
                             table.insert(whitespace_tbl, indent.whitespace.TAB_START)
@@ -385,11 +401,11 @@ M.refresh = function(bufnr)
             scope_active
             and scope_col_start_single > -1
             and (whitespace_tbl[scope_col_start_single + 1] or blankline)
-            and not indent.is_indent(whitespace_tbl[scope_col_start_single + 1])
+            and not is_indent(whitespace_tbl[scope_col_start_single + 1])
         then
             local ref = whitespace_tbl[scope_col_start_single + 1] or last_whitespace_tbl[scope_col_start_single + 1]
             if ref then
-                if indent.is_space_indent(ref) then
+                if is_space_indent(ref) then
                     whitespace_tbl[scope_col_start_single + 1] = indent.whitespace.INDENT
                 else
                     whitespace_tbl[scope_col_start_single + 1] = indent.whitespace.TAB_START
@@ -405,7 +421,7 @@ M.refresh = function(bufnr)
         -- remove blankline trail
         if blankline and config.whitespace.remove_blankline_trail then
             while #whitespace_tbl > 0 do
-                if indent.is_indent(whitespace_tbl[#whitespace_tbl]) then
+                if is_indent(whitespace_tbl[#whitespace_tbl]) then
                     break
                 end
                 table.remove(whitespace_tbl, #whitespace_tbl)
@@ -440,7 +456,7 @@ M.refresh = function(bufnr)
         )
 
         -- #### set virtual text ####
-        vt.clear_buffer(bufnr, row)
+        vt_clear_buffer(bufnr, row)
 
         -- Show exact scope
         local scope_col_start_draw = #whitespace
