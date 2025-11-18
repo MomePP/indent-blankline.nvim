@@ -130,7 +130,7 @@ function M.gsplit(s, sep, opts)
     end
 end
 
---- copy of vim.tbl_contains without vim.validate
+--- copy of vim.tbl_contains without vim.validate, optimized for hot path
 ---
 ---@param t table Table to check
 ---@param value any Value to compare or predicate function reference
@@ -138,18 +138,17 @@ end
 ---       - predicate: (boolean) `value` is a function reference to be checked (default false)
 ---@return boolean `true` if `t` contains `value`
 M.tbl_contains = function(t, value, opts)
-    local pred
     if opts and opts.predicate then
-        pred = value
-    else
-        pred = function(v)
-            return v == value
+        for _, v in pairs(t) do
+            if value(v) then
+                return true
+            end
         end
-    end
-
-    for _, v in pairs(t) do
-        if pred(v) then
-            return true
+    else
+        for _, v in pairs(t) do
+            if v == value then
+                return true
+            end
         end
     end
     return false
@@ -167,7 +166,7 @@ M.tbl_count = function(t)
     return count
 end
 
---- copy of vim.tbl_map without vim.validate
+--- copy of vim.tbl_map without vim.validate, optimized for hot path
 ---
 ---@generic T
 ---@param func fun(value: T): any (function) Function
@@ -181,7 +180,7 @@ M.tbl_map = function(func, t)
     return rettab
 end
 
---- copy of vim.tbl_filter without vim.validate
+--- copy of vim.tbl_filter without vim.validate, optimized for hot path
 ---
 ---@generic T
 ---@param func fun(value: T): boolean (function) Function
@@ -189,9 +188,11 @@ end
 ---@return T[] (table) Table of filtered values
 M.tbl_filter = function(func, t)
     local rettab = {}
+    local n = 0
     for _, entry in pairs(t) do
         if func(entry) then
-            table.insert(rettab, entry)
+            n = n + 1
+            rettab[n] = entry
         end
     end
     return rettab
@@ -472,12 +473,17 @@ end
 ---@param left_offset number
 ---@return ibl.indent.whitespace[]
 M.fix_horizontal_scroll = function(whitespace_tbl, left_offset)
-    local current_left_offset = left_offset
-    while #whitespace_tbl > 0 and current_left_offset > 0 do
-        table.remove(whitespace_tbl, 1)
-        current_left_offset = current_left_offset - 1
+    if left_offset == 0 or #whitespace_tbl == 0 then
+        return whitespace_tbl
     end
-    return whitespace_tbl
+    
+    -- Optimized: create new table instead of multiple table.remove calls
+    local result = {}
+    local start_idx = left_offset + 1
+    for i = start_idx, #whitespace_tbl do
+        result[#result + 1] = whitespace_tbl[i]
+    end
+    return result
 end
 
 ---@param bufnr number

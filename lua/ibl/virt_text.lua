@@ -2,6 +2,10 @@ local highlights = require "ibl.highlights"
 local utils = require "ibl.utils"
 local indent = require "ibl.indent"
 local whitespace = indent.whitespace
+
+-- Cache namespace at module level for better performance
+local namespace = vim.api.nvim_create_namespace "indent_blankline"
+
 local M = {}
 
 ---@alias ibl.virtual_text { [1]: string, [2]: string|string[] }[]
@@ -44,7 +48,6 @@ end
 ---@param bufnr number
 ---@param row number?
 M.clear_buffer = function(bufnr, row)
-    local namespace = vim.api.nvim_create_namespace "indent_blankline"
     local line_start = 0
     local line_end = -1
     if row then
@@ -78,21 +81,25 @@ M.get = function(
     local virt_text = {}
     local scope_edge = (config.scope.show_start and scope_start and not config.scope.show_exact_scope)
         or (config.scope.show_end and scope_end)
+    
+    -- Cache highlights tables for better performance
+    local hl_whitespace = highlights.whitespace
+    local hl_indent = highlights.indent
 
     for i, ws in ipairs(whitespace_tbl) do
-        local whitespace_hl = utils.tbl_get_index(highlights.whitespace, indent_index - 1).char
+        local whitespace_hl = utils.tbl_get_index(hl_whitespace, indent_index - 1).char
         local indent_hl
         local underline_hl
         local sa = scope_active
         local char = get_char(char_map[ws], (ws == whitespace.SPACE and i) or indent_index)
 
         if indent.is_indent(ws) then
-            whitespace_hl = utils.tbl_get_index(highlights.whitespace, indent_index).char
+            whitespace_hl = utils.tbl_get_index(hl_whitespace, indent_index).char
             if vim.fn.strwidth(char) == 0 then
                 char = char_map[whitespace.SPACE] --[[@as string]]
                 sa = false
             else
-                indent_hl = utils.tbl_get_index(highlights.indent, indent_index).char
+                indent_hl = utils.tbl_get_index(hl_indent, indent_index).char
             end
             indent_index = indent_index + 1
         end
