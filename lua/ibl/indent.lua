@@ -49,6 +49,7 @@ M.get = function(whitespace, opts, whitespace_only, indent_state)
         shiftwidth = tabstop
     end
     local whitespace_tbl = {}
+    local tbl_idx = 0
 
     for ch in whitespace:gmatch "." do
         if ch == "\t" then
@@ -66,34 +67,40 @@ M.get = function(whitespace, opts, whitespace_only, indent_state)
             tabs = tabs + tab_width
 
             if tab_width == 1 then
-                table.insert(whitespace_tbl, M.whitespace.TAB_START_SINGLE)
+                tbl_idx = tbl_idx + 1
+                whitespace_tbl[tbl_idx] = M.whitespace.TAB_START_SINGLE
             else
-                table.insert(whitespace_tbl, M.whitespace.TAB_START)
+                tbl_idx = tbl_idx + 1
+                whitespace_tbl[tbl_idx] = M.whitespace.TAB_START
             end
 
             for i = 2, tab_width do
+                tbl_idx = tbl_idx + 1
                 if i == tab_width then
-                    table.insert(whitespace_tbl, M.whitespace.TAB_END)
+                    whitespace_tbl[tbl_idx] = M.whitespace.TAB_END
                 else
-                    table.insert(whitespace_tbl, M.whitespace.TAB_FILL)
+                    whitespace_tbl[tbl_idx] = M.whitespace.TAB_FILL
                 end
             end
             spaces_since_last_tab = 0
         else
             local mod = (spaces + tabs + extra) % shiftwidth
             if utils.tbl_contains(indent_state.stack, spaces + tabs) then
-                table.insert(whitespace_tbl, M.whitespace.INDENT)
+                tbl_idx = tbl_idx + 1
+                whitespace_tbl[tbl_idx] = M.whitespace.INDENT
                 extra = extra + mod
             elseif mod == 0 then
+                tbl_idx = tbl_idx + 1
                 if #whitespace_tbl < indent_cap or not opts.smart_indent_cap then
-                    table.insert(whitespace_tbl, M.whitespace.INDENT)
+                    whitespace_tbl[tbl_idx] = M.whitespace.INDENT
                     extra = extra + mod
                 else
                     indent_state.cap = true
-                    table.insert(whitespace_tbl, M.whitespace.SPACE)
+                    whitespace_tbl[tbl_idx] = M.whitespace.SPACE
                 end
             else
-                table.insert(whitespace_tbl, M.whitespace.SPACE)
+                tbl_idx = tbl_idx + 1
+                whitespace_tbl[tbl_idx] = M.whitespace.SPACE
             end
             spaces = spaces + 1
             spaces_since_last_tab = spaces_since_last_tab + 1
